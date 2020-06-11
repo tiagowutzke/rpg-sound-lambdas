@@ -49,20 +49,3 @@ def get_files_from_s3(bucket, folder):
         aws_secret_access_key=os.environ.get('SECRET')
     )
     return s3.list_objects(Bucket=bucket, Prefix=folder)
-
-#
-# _BUCKET_NAME = 'mybucket'
-# _PREFIX = 'subfolder/'
-#
-# client = boto3.client('s3', aws_access_key_id=ACCESS_KEY,
-#                             aws_secret_access_key=SECRET_KEY)
-#
-# def ListFiles(client):
-#     """List files in specific S3 URL"""
-#     response = client.list_objects(Bucket=_BUCKET_NAME, Prefix=_PREFIX)
-#     for content in response.get('Contents', []):
-#         yield content.get('Key')
-#
-# file_list = ListFiles(client)
-# for file in file_list:
-#     print 'File found: %s' % file

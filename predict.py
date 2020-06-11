@@ -97,14 +97,15 @@ def start_prediction(sentence, table):
         file = key.replace(table+'/', '')
 
         get_file_from_s3(bucket_name, key, file)
-        nlp = load_zipped_pickle(f'/tmp/{file}')
+        nlp_batch = load_zipped_pickle(f'/tmp/{file}')
 
-        prediction = nlp_predict(nlp, sentence)
+        for nlp in tuple(nlp_batch,):
+            prediction = nlp_predict(nlp, sentence)
 
-        if not prediction:
-            continue
-        else:
-            predictions_to_check.append(prediction)
+            if not prediction:
+                continue
+            else:
+                predictions_to_check.append(prediction)
 
     conn, _, query = get_database_objects()
     _, _, score_single, score_multiple, score_suggestions = query.query_config()

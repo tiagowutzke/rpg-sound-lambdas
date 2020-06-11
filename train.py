@@ -175,6 +175,16 @@ def append_not_label_suggestions(train_data, label, table):
     return train_data + data_append
 
 
+def check_batch_send_s3(nlp_batch, nlp_trained, table, batch_id, batch_size=10):
+    nlp_batch.append(nlp_trained)
+
+    if len(nlp_batch) >= batch_size:
+        send_model_to_s3(tuple(nlp_batch), table, batch_id)
+        return []
+
+    return nlp_batch
+
+
 def train_model(table):
     labels, sentences = get_train_data(table)
 
@@ -183,8 +193,11 @@ def train_model(table):
 
     unique_labels = set(labels)
 
+    # Group nlp models in batch (to optimize S3 models prediction request)
+    nlp_batch = []
+
     # A nlp for each label
-    for label in unique_labels:
+    for idx, label in enumerate(unique_labels):
         nlp = get_new_nlp(label)
 
         # Set labels/not labels
@@ -196,10 +209,15 @@ def train_model(table):
         # Append "not" label suggestions, if exists
         label_train_data = append_not_label_suggestions(label_train_data, label, table)
 
-        # Train model in batch
+        # Train model in sentences batch
         nlp_trained = train_batch_model(nlp, label_train_data)
 
-        send_model_to_s3(nlp_trained, table, label)
+        # If model batch reaches desired size, send him to S3
+        nlp_batch = check_batch_send_s3(nlp_batch, nlp_trained, table, f'batch_{idx}')
+
+    # Send remaining label, if exists
+    if nlp_batch:
+        check_batch_send_s3(nlp_batch, nlp_trained, table, f'batch_{idx + 10}', batch_size=0)
 
 
 def send_model_to_s3(model, table, label):
