@@ -11,7 +11,7 @@ import pickle
 import random
 
 from database.adapter import get_database_objects
-from utils.s3_transactions import send_file_to_s3
+from utils.s3_transactions import send_file_to_s3, get_files_from_s3
 
 
 def load_tables(table):
@@ -229,6 +229,17 @@ def send_model_to_s3(model, table, label):
     return send_file_to_s3(filename, bucket, folder='models', folder_s3=table)
 
 
+def save_list_s3_models(table):
+    """Save S3 list request in pickle file in order to saving lists requests in AWS"""
+    bucket = os.environ.get('MODELS_S3_BUCKET')
+    bucket_list = get_files_from_s3(bucket, table)
+
+    filename = f'/tmp/{table}_models_list.p'
+    save_zipped_pickle(bucket_list, filename)
+
+    return send_file_to_s3(filename, bucket, folder='models', folder_s3=table)
+
+
 def save_zipped_pickle(obj, filename, protocol=-1):
     with gzip.open(filename, 'wb') as f:
         pickle.dump(obj, f, protocol)
@@ -238,5 +249,6 @@ def start_training(tables):
 
     for table in tables:
         train_model(table)
+        save_list_s3_models(table)
 
     return True

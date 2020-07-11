@@ -1,8 +1,9 @@
 import os
 import gzip
 import pickle
+import numpy as np
 
-from utils.s3_transactions import get_files_from_s3, get_file_from_s3
+from utils.s3_transactions import get_file_from_s3
 
 from spacy.lang.pt.stop_words import STOP_WORDS
 
@@ -50,7 +51,8 @@ def check_multiple_prediction(predictions, valid_score):
         max_score_idx = scores.index(max(scores))
 
         return labels[max_score_idx], max(scores)
-    except:
+    except Exception as e:
+        print(e)
         return '', ''
 
 
@@ -87,11 +89,17 @@ def load_zipped_pickle(filename):
 
 
 def start_prediction(sentence, table):
+    # Getting S3 list from pickle file saved while training model
     bucket_name = os.environ.get('MODELS_S3_BUCKET')
-    bucket = get_files_from_s3(bucket_name, table)
+    download_path = f'{table}_models_list.p'
+    s3_path = f'{table}/{download_path}'
+
+    get_file_from_s3(bucket_name, s3_path, download_path)
+    bucket = load_zipped_pickle(f'/tmp/{download_path}')
 
     predictions_to_check = []
 
+    # For each model in S3 list, make prediction
     for file in bucket.get('Contents', []):
         key = file.get('Key')
         file = key.replace(table+'/', '')
