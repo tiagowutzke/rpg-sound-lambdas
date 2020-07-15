@@ -11,7 +11,7 @@ import pickle
 import random
 
 from database.adapter import get_database_objects
-from utils.s3_transactions import send_file_to_s3, get_files_from_s3
+from utils.s3_transactions import send_file_to_s3, get_files_from_s3, delete_all_files_s3
 
 
 def load_tables(table):
@@ -53,6 +53,7 @@ def get_train_data_not_labels(label, table):
 
     conn.close()
     return validations
+
 
 def remove_stop_words(sentence):
     filtered_sentence = [
@@ -107,7 +108,6 @@ def train_batch_model(nlp, train_data):
             # This is a quick way to split a list of tuples into lists
             texts, labels = zip(*batch)
             nlp.update(texts, labels, sgd=optimizer, losses=losses)
-        # print(losses)
     return nlp
 
 
@@ -175,7 +175,7 @@ def append_not_label_suggestions(train_data, label, table):
     return train_data + data_append
 
 
-def check_batch_send_s3(nlp_batch, nlp_trained, table, batch_id, batch_size=10):
+def check_batch_send_s3(nlp_batch, nlp_trained, table, batch_id, batch_size=15):
     nlp_batch.append(nlp_trained)
 
     if len(nlp_batch) >= batch_size:
@@ -183,6 +183,12 @@ def check_batch_send_s3(nlp_batch, nlp_trained, table, batch_id, batch_size=10):
         return []
 
     return nlp_batch
+
+
+def reset_models(table):
+    """Delete all files in bucket folder"""
+    bucket = os.environ.get('MODELS_S3_BUCKET')
+    delete_all_files_s3(bucket, folder=f'{table}/models/')
 
 
 def train_model(table):
@@ -195,6 +201,9 @@ def train_model(table):
 
     # Group nlp models in batch (to optimize S3 models prediction request)
     nlp_batch = []
+
+    # Replace with new models trained
+    reset_models(table)
 
     # A nlp for each label
     for idx, label in enumerate(unique_labels):
@@ -217,7 +226,7 @@ def train_model(table):
 
     # Send remaining label, if exists
     if nlp_batch:
-        check_batch_send_s3(nlp_batch, nlp_trained, table, f'batch_{idx + 10}', batch_size=0)
+        check_batch_send_s3(nlp_batch, nlp_trained, table, f'batch_{idx+1}', batch_size=0)
 
 
 def send_model_to_s3(model, table, label):
@@ -226,13 +235,13 @@ def send_model_to_s3(model, table, label):
     save_zipped_pickle(model, filename)
 
     bucket = os.environ.get('MODELS_S3_BUCKET')
-    return send_file_to_s3(filename, bucket, folder='models', folder_s3=table)
+    return send_file_to_s3(filename, bucket, folder='models', folder_s3=f'{table}/models')
 
 
 def save_list_s3_models(table):
     """Save S3 list request in pickle file in order to saving lists requests in AWS"""
     bucket = os.environ.get('MODELS_S3_BUCKET')
-    bucket_list = get_files_from_s3(bucket, table)
+    bucket_list = get_files_from_s3(bucket, f'{table}/models')
 
     filename = f'/tmp/{table}_models_list.p'
     save_zipped_pickle(bucket_list, filename)
@@ -252,3 +261,12 @@ def start_training(tables):
         save_list_s3_models(table)
 
     return True
+
+
+
+
+from environ import set_environ_variables
+set_environ_variables()
+
+tables = ('musica_ambiente', 'efeito_sonoro', 'som_ambiente')
+start_training(tables)

@@ -102,7 +102,10 @@ def start_prediction(sentence, table):
     # For each model in S3 list, make prediction
     for file in bucket.get('Contents', []):
         key = file.get('Key')
-        file = key.replace(table+'/', '')
+        file = key.replace(table+'/models/', '')
+
+        if not file:
+            continue
 
         get_file_from_s3(bucket_name, key, file)
         nlp_batch = load_zipped_pickle(f'/tmp/{file}')
